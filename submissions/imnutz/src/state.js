@@ -15,10 +15,10 @@ var state = {
     representation: function representation(model) {
         var representation = h("div.app-container", [
             h("div.css-root", [
-                theme.header(model.planet),
+                theme.header(model.planet.name),
                 h("section.css-scrollable-list", [
                     theme.sithList(model.siths),
-                    theme.buttons(model.disabledUp, model.disabledDown)
+                    theme.buttons(model.disabledUp, model.disabledDown, _action)
                 ])
             ])
         ]);       
@@ -27,8 +27,10 @@ var state = {
     },
 
     nap: function nextAction(model) {
-        if(model.shouldFetchApprentice) {
-            _action.fetchApprentice();
+        if(model.initialize) {
+            _action.fetchSith(model.sithId);
+        } else if(!model.hasWebSocketData && (model.shouldFetchApprentice || model.shouldFetchMaster)) {
+            _action.fetchSith(model.sithId);
         }
     },
 

@@ -1,17 +1,17 @@
 "use strict";
 
-var reqwest = require("reqwest");
-
-var url = "http://localhost:3000/dark-jedis";
-
 var model = {
+    initialize: true,
+
     sithsOnPage: 5,
     planet: "",
     siths: [],
 
     lastFetchedSith: null,
     disabledUp: false,
-    disabledDown: false
+    disabledDown: false,
+
+    sithId: 3616
 };
 
 var _render,
@@ -22,65 +22,191 @@ model.setRender = function setRender(render) {
 };
 
 model.present = function present(data) {
-    if(data.planet) {
+    if(data.hasWebSocketData) {
+        model.hasWebSocketData = data.hasWebSocketData;
         model.planet = data.planet;
-        _render(model)
+
+        if(model.shouldHighlightSith(data.planet)) {
+            model.disabledDown = true;
+            model.disabledUp = true;
+        } else {
+            model.toggleUpDown(model.siths);
+        }
+        model.toggleHighlight(data.planet);
+
+        _render(model);
+        return;
+    } else {
+        model.hasWebSocketData = false;
     }
 
-    if(data.fetchNextApprentice) {
-        model.fetchApprentice();
+    if(model.initialize && data.sith) {
+        model.initialize = false;
+        model.appendSith(data.sith);
+
+        if(data.sith.apprentice.id) {
+            model.shouldFetchApprentice = true;
+            model.sithId = data.sith.apprentice.id;
+        }
+
+        _render(model);
+        return;
+    }
+
+    if(model.shouldFetchApprentice && data.sith) {
+        model.appendSith(data.sith);
+
+        if (!data.sith.apprentice.id) {
+            model.disabledDown = true;
+            model.shouldFetchApprentice = false;
+        } else if(!model.hasRoom()) {
+            model.shouldFetchApprentice = false;
+        } else {
+            model.sithId = data.sith.apprentice.id;
+        }
+
+        _render(model);
+        return;
+    }
+
+    if(model.shouldFetchMaster && data.sith) {
+        model.prependSith(data.sith);
+
+        if (!data.sith.master.id) {
+            model.disabledUp = true;
+            model.shouldFetchMaster = false;
+        } else if(!model.hasRoom()) {
+            model.shouldFetchMaster = false;
+        } else {
+            model.disabledUp = false;
+            model.sithId = data.sith.master.id;
+        }
+
+        _render(model);
+        return;       
+    }
+
+    if(data.moveUp) {
+        var firstSith = model.siths[0],
+            lastSith;
+
+        if(firstSith.master.id) {
+            model.shouldFetchMaster = true;
+            model.sithId = firstSith.master.id;
+        }
+
+        model.moveListUp();
+
+        lastSith = model.siths[model.siths.length - 1];
+        if(lastSith.apprentice.id) {
+            model.disabledDown = false;
+        }
+
+        _render(model);
+        return;
+    }
+
+    if(data.moveDown) {
+        var firstSith,
+            lastSith = model.siths[model.siths.length - 1];
+
+        if(lastSith.apprentice.id) {
+            model.shouldFetchApprentice = true;
+            model.sithId = lastSith.apprentice.id;
+        }
+
+        model.moveListDown();
+
+        firstSith = model.siths[0];
+        if(firstSith.master.id) {
+            model.disabledUp = false;
+        }
+
+        _render(model);
+        return;
     }
 };
 
 model.init = function initModel() {
-    _ws = new WebSocket("ws://localhost:4000");
-    _ws.onmessage = function (event) {
-        model.planet = (JSON.parse(event.data)).name;
-        _render(model);
-    };
-
-    this.getFirstSith();
+    for(var i = 0; i < model.sithsOnPage; i++) {
+        model.siths.push({});
+    }
 
     return model;
 };
 
-// services
-model.getFirstSith = function getFirstSith() {
-    model.getSith([url, 3616].join("/"))
-         .then(function(response) {
-            model.siths.push(response);
-            model.lastFetchedSith = response;
-
-            if(response.apprentice.id) {
-                model.shouldFetchApprentice = true;
-            }
-
-            _render(model);
-         });
+model.shouldHighlightSith = function getSithOnPlanet(planet) {
+    return model.siths.filter(function(sith) {
+        return sith.id && sith.homeworld.id === planet.id;
+    }).length;
 };
 
-model.fetchApprentice = function fetchApprentice() {
-    model.getSith(model.lastFetchedSith.apprentice.url)
-         .then(function(response) {
-            model.siths.push(response);
-            model.lastFetchedSith = response;
-            if(response.apprentice.id) {
-                if(model.siths.length < model.sithsOnPage) {
-                    model.shouldFetchApprentice = true;
-                } else {
-                    model.shouldFetchApprentice = false;
-                }
-            } else {
-                model.shouldFetchApprentice = false;
-                model.disabledDown = true;
-            }
+model.toggleHighlight = function checkSithForCurrentPlanet(planet) {
+    model.siths.forEach(function(sith) {
+        if(sith.id && sith.homeworld.id === planet.id) {
+            sith.highlight = true;
+        } else {
+            sith.highlight = false;
+        }
+    });
+};
 
-            _render(model);
-         });
-}
+model.moveListUp = function moveListUp() {
+    model.siths.splice(-2);
+    model.siths.unshift({});
+    model.siths.unshift({});
+};
 
-model.getSith = function getSith(url) {
-    return reqwest(url)
+model.moveListDown = function moveListUp() {
+    model.siths.splice(0, 2);
+    model.siths.push({});
+    model.siths.push({});
+};
+
+model.appendSith = function appendSith(appendedSith) {
+    for(var i = 0; i < model.siths.length; i++) {
+        if(!model.siths[i].id) {
+            model.siths[i].id = appendedSith.id;
+            model.siths[i].name = appendedSith.name;
+            model.siths[i].homeworld = appendedSith.homeworld;
+            model.siths[i].apprentice = appendedSith.apprentice;
+            model.siths[i].master = appendedSith.master;
+
+            break;
+        }
+    }
+};
+model.prependSith = function prependSith(prependedSith) {
+    for(var i = model.siths.length - 1; i >= 0; i--) {
+        if(!model.siths[i].id) {
+            model.siths[i].id = prependedSith.id;
+            model.siths[i].name = prependedSith.name;
+            model.siths[i].homeworld = prependedSith.homeworld;
+            model.siths[i].apprentice = prependedSith.apprentice;
+            model.siths[i].master = prependedSith.master;
+
+            break;
+        }
+    }
+};
+
+model.toggleUpDown = function toggleUpDown(siths) {
+    var firstSith = siths[0],
+        lastSith = siths[siths.length - 1];
+
+    if(firstSith.id && firstSith.master.id) {
+        model.disabledUp = false;
+    }
+
+    if(lastSith.id && lastSith.master.id) {
+        model.disabledDown = false;
+    }   
+};
+
+model.hasRoom = function isListFull() {
+    return model.siths.filter(function(sith) {
+        return !sith.id;
+    }).length;
 };
 
 module.exports = model;

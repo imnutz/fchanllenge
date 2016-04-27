@@ -5,9 +5,9 @@ var run = function(state, action, model, view, websocket) {
     model.setRender(state.render);
 
     action.init(model.present);
-    // websocket.bootstrap(action.handleWebSocketData);
+    websocket.bootstrap(action.handleWebSocketData);
 
-    view.display(view.init(model.init()));
+    view.display(view.init(model.init(), action));
 };
 
 module.exports = {
