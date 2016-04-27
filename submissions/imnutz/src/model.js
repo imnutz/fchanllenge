@@ -90,7 +90,7 @@ model.present = function present(data) {
         var firstSith = model.siths[0],
             lastSith;
 
-        if(firstSith.master.id) {
+        if(firstSith.id && firstSith.master.id) {
             model.shouldFetchMaster = true;
             model.sithId = firstSith.master.id;
         }
@@ -110,7 +110,7 @@ model.present = function present(data) {
         var firstSith,
             lastSith = model.siths[model.siths.length - 1];
 
-        if(lastSith.apprentice.id) {
+        if(lastSith.id && lastSith.apprentice.id) {
             model.shouldFetchApprentice = true;
             model.sithId = lastSith.apprentice.id;
         }
