@@ -198,7 +198,7 @@ model.toggleUpDown = function toggleUpDown(siths) {
         model.disabledUp = false;
     }
 
-    if(lastSith.id && lastSith.master.id) {
+    if(lastSith.id && lastSith.apprentice.id) {
         model.disabledDown = false;
     }   
 };
